@@ -1,0 +1,96 @@
+---
+title: "Project 1"
+output: 
+   html_document:
+     keep_md: true
+---
+
+
+
+**Loading and preprocessing the data**
+```{r}
+activity <- read.csv("C:/Users/200020269/Desktop/repdata-data-activity/activity.csv")
+```
+
+
+
+
+**Part 1:  What is mean total number of steps taken per day**
+```{r, echo=TRUE, message=FALSE}
+#load sqldf package
+library("sqldf", lib.loc="~/R/win-library/3.1")
+# create a by day dataframe
+activity_by_day <- sqldf('select date, sum(steps) AS steps from activity where steps is not null group by date')
+```
+```{r, echo=TRUE}
+# Show a histogram of steps taken per day
+hist(activity_by_day$steps)
+# Calculate Mean and Median
+mean(activity_by_day$steps)
+median(activity_by_day$steps)
+```
+
+
+**Part 2 What is the average daily activity pattern**
+
+
+**Time Series Line Plot showing the average number of steps taken in a five minute interval**
+```{r, echo=TRUE, message=FALSE}
+#Create Data Frame of Averages by Interval
+activity_by_interval <- sqldf('select interval, avg(steps) AS averageIntervalSteps from activity where steps is not null group by interval')
+```
+```{r, echo=TRUE}
+#Plot average steps per Interval for all days
+xrange <- activity_by_interval$interval
+yrange <- activity_by_interval$averageIntervalSteps
+plot(xrange, yrange, type="l", main="Average Steps Per Interval",xlab="Interval",ylab="Average Steps")
+```
+
+**The 5 minute interval, on average across days containg the max number of steps**
+```{r, echo=TRUE}
+sqldf('select interval, max(averageIntervalSteps) AS averageSteps from activity_by_interval where averageIntervalSteps is not null')
+```
+
+
+
+
+**PART 3:  Inputting Missing Values**
+```{r, echo=TRUE}
+#Merge the previously calculated average steps by interval data frame with the original activity data set
+activity_clean <- merge(x = activity, y = activity_by_interval, by="interval", all.x=TRUE)
+#Apply logic to remove nulls:  Replace any null values in the steps data field with the interval average.
+activity_clean$steps[is.na(activity_clean$steps)] <- (activity_clean$averageIntervalSteps)
+#Remove the average field from the data frame thus creating a new dataset equal to the original but with the missing data filled in
+activity_clean <- sqldf('select date, steps, interval FROM activity_clean')
+```
+```{r}
+#Make a histogram with cleaned data and calculate mean and median
+activity_by_day_clean <- sqldf('select date, sum(steps) AS steps from activity_clean group by date')
+```
+```{r, echo=TRUE}
+# Show a histogram of steps taken per day
+hist(activity_by_day_clean$steps)
+# Calculate Mean and Median
+mean(activity_by_day_clean$steps)
+median(activity_by_day_clean$steps)
+```
+IMPACT OF CLEANING DATA:  The Median and Mean values after removing null values from the data set both decreased.  Also, the difference between the Median and Mean increased with the Mean being the lessor value.  In the original data set where null values were discounted completely, the median and mean where very close to the same value.  Comparing the two histograms also shows the distribution of the data has shifted from (what looks like visually) near normal to more right skewed.
+
+
+
+
+**Part 4:  Weekday/Weekend Analysis**
+```{r}
+## Create a new factor that distinguishes weekdays from weekends & calculate average steps for each interval in each factor
+activity_clean$day <- weekdays(as.Date(activity_clean$date))
+activity_clean$daytype <- ifelse(activity_clean$day=='Sunday' | activity_clean$day=='Saturday','weekend','weekday')
+activity_clean_daytype <- sqldf('select interval, daytype, avg(steps) AS averageIntervalSteps from activity_clean group by interval, daytype')
+```
+
+
+```{r}
+## Line Plots showing Average Interval Steps on weekdays and weekends
+library("ggplot2", lib.loc="~/R/win-library/3.1")
+qplot(interval, averageIntervalSteps, data=activity_clean_daytype, geom="line", facets = daytype ~ .)
+
+```
